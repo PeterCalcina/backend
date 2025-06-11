@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model InventoryItem {
+  id        Int        @id @default(autoincrement())
+  name      String
+  sku       String     @unique
+  qty       Int
+  cost      Float
+  lastEntry DateTime
+  userId    String // Supabase UID
+  movements Movement[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Movement {
+  id        Int           @id @default(autoincrement())
+  type      MovementType
+  quantity  Int
+  unitCost  Float
+  date      DateTime
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+  itemId    Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+enum MovementType {
+  ENTRY
+  EXIT
+  EXPIRATION
+  SALE
+}
