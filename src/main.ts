@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { AuthGuard } from './auth/auth.guard';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/all-exception-filter';
 import { generalRateLimiter } from './common/middleware/rate-limits';
@@ -14,7 +14,7 @@ async function bootstrap() {
   app.setGlobalPrefix(globalPrefix);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalGuards(new AuthGuard());
+  app.useGlobalGuards(new JwtAuthGuard());
 
   app.enableCors({
     origin: '*',

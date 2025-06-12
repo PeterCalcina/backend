@@ -8,7 +8,8 @@ export const generalRateLimiter = rateLimit({
   standardHeaders: 'draft-7', // Devuelve la información de límite de peticiones en los headers `RateLimit-*`
   legacyHeaders: false, // Desactiva los headers `X-RateLimit-*`
   keyGenerator: (req: Request) => {
-    return req.user?.id || req.ip;
+    const { id } = req.user as { id: string };
+    return id || req.ip;
   },
   handler: (req: Request, res: Response, next: NextFunction) => {
     next(
