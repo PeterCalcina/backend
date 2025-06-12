@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   ParseIntPipe,
+  HttpStatus,
 } from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryService } from './inventory.service';
@@ -19,34 +20,38 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Post()
-  createInventory(
+  async createInventory(
     @Body() createInventoryDto: CreateInventoryDto,
     @User('id') userId: string,
   ) {
-    return this.inventoryService.createInventory(createInventoryDto, userId);
+    const item = await this.inventoryService.createInventory(createInventoryDto, userId);
+    return successResponse(item, 'Producto creado', HttpStatus.CREATED);
   }
 
   @Get()
-  findAll(@User('id') userId: string) {
-    return this.inventoryService.findAll(userId);
+  async findAll(@User('id') userId: string) {
+    const items = await this.inventoryService.findAll(userId);
+    return successResponse(items, 'Productos encontrados');
   }
 
   @Get('/:id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const item = await this.inventoryService.findOne(id);
-    return successResponse(item, 'Inventario encontrado');
+    return successResponse(item, 'Producto encontrado');
   }
 
   @Patch('/:id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateInventoryDto: UpdateInventoryDto,
   ) {
-    return this.inventoryService.update(id, updateInventoryDto);
+    const item = await this.inventoryService.update(id, updateInventoryDto);
+    return successResponse(item, 'Producto actualizado', HttpStatus.OK);
   }
 
   @Delete('/:id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.inventoryService.delete(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    const item = await this.inventoryService.delete(id);
+    return successResponse(item, 'Producto eliminado', HttpStatus.OK);
   }
 }

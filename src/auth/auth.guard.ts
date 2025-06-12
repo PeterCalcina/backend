@@ -19,7 +19,7 @@ export class AuthGuard implements CanActivate {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer '))
-      throw new UnauthorizedException('Missing token');
+      throw new UnauthorizedException('Usuario no autenticado');
 
     const token = authHeader.split(' ')[1];
 

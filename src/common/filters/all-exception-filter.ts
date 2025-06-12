@@ -1,10 +1,11 @@
+// src/common/filters/all-exceptions.filter.ts
 import {
   ExceptionFilter,
   Catch,
   ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { StandardResponse } from '../dto/response.dto';
@@ -12,6 +13,7 @@ import { StandardResponse } from '../dto/response.dto';
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
+  private readonly isProduction = process.env.NODE_ENV === 'production';
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -22,7 +24,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let userFriendlyMessage = 'Un error inesperado ocurrió en el servidor.';
     let errorDetails: string | string[] | object = 'Internal Server Error';
 
-    // 1. HttpExceptions
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -30,44 +31,69 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (typeof exceptionResponse === 'string') {
         userFriendlyMessage = exceptionResponse;
         errorDetails = exceptionResponse;
-      }
-      // Si la respuesta de la excepción es un objeto (ej. ValidationPipe o respuesta de HttpException custom)
-      else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        const responseObject = exceptionResponse as any; // Cast para acceder a propiedades
+      } else if (
+        typeof exceptionResponse === 'object' &&
+        exceptionResponse !== null
+      ) {
+        const responseObject = exceptionResponse as any;
 
+        // Caso 1: Errores de ValidationPipe (message es un array)
         if (responseObject.message && Array.isArray(responseObject.message)) {
-          userFriendlyMessage = 'Validación falló. Por favor, verifique los datos sean correctos.';
-          errorDetails = responseObject.message; // El array de mensajes de validación
+          userFriendlyMessage =
+            'Validación falló. Por favor, verifique los datos sean correctos.';
+          errorDetails = responseObject.message;
         }
+        // Caso 2: Mensaje personalizado (ej. { message: '...', technicalMessage: '...' })
         else if (responseObject.message) {
+          // Asume que 'message' es el amigable
           userFriendlyMessage = responseObject.message;
-          errorDetails = responseObject.error || responseObject.message;
-        }
-        // Fallback si no tiene 'message' pero es un objeto
-        else {
-            errorDetails = responseObject;
+          errorDetails =
+            responseObject.technicalMessage ||
+            responseObject.error ||
+            responseObject.message;
+        } else {
+          errorDetails = responseObject;
         }
       }
-    }
-    // 2. Errores Genéricos
-    else if (exception instanceof Error) {
+    } else if (exception instanceof Error) {
       userFriendlyMessage = 'Ocurrió un error interno en el servidor.';
       errorDetails = exception.message;
-      this.logger.error(`Unhandled Error: ${exception.message}`, exception.stack, request.url);
-    }
-    // 3. Cualquier otra cosa desconocida
-    else {
+      this.logger.error(
+        `Unhandled Error: ${exception.message}`,
+        exception.stack,
+        request.url,
+      );
+    } else {
       userFriendlyMessage = 'Ocurrió un error inesperado.';
       errorDetails = 'Tipo de error desconocido.';
-      this.logger.error(`Unknown Exception Type: ${JSON.stringify(exception)}`, null, request.url);
+      this.logger.error(
+        `Unknown Exception Type: ${JSON.stringify(exception)}`,
+        null,
+        request.url,
+      );
+    }
+
+    let finalErrorPayload: string | string[] | object | undefined;
+
+    if (status === HttpStatus.BAD_REQUEST && Array.isArray(errorDetails)) {
+      finalErrorPayload = errorDetails; //Errores de la validación del DTO
+    } else if (this.isProduction) {
+      finalErrorPayload = undefined;
+    } else {
+      finalErrorPayload = errorDetails;
     }
 
     const finalResponse: StandardResponse<null> = {
       status: status,
       message: userFriendlyMessage,
-      error: errorDetails,
+      error: finalErrorPayload,
     };
 
+    this.logger.error(
+      `${userFriendlyMessage} - ${finalErrorPayload}`,
+      null,
+      request.url,
+    );
     response.status(status).json(finalResponse);
   }
 }
