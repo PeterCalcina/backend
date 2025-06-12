@@ -25,13 +25,13 @@ export class InventoryController {
     @User('id') userId: string,
   ) {
     const item = await this.inventoryService.createInventory(createInventoryDto, userId);
-    return successResponse(item, 'Producto creado', HttpStatus.CREATED);
+    return successResponse(item, 'Producto creado correctamente', HttpStatus.CREATED);
   }
 
   @Get()
   async findAll(@User('id') userId: string) {
     const items = await this.inventoryService.findAll(userId);
-    return successResponse(items, 'Productos encontrados');
+    return successResponse(items, 'Productos listados correctamente');
   }
 
   @Get('/:id')
