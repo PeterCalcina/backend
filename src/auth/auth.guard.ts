@@ -28,11 +28,9 @@ export class AuthGuard implements CanActivate {
         issuer: `${SUPABASE_URL}/auth/v1`,
       });
 
-      // Insertar el usuario en request.user
-      req['user'] = {
+      req.user = {
         id: payload.sub,
-        email: payload.email,
-        role: payload.role,
+        email: payload.email as string,
       };
 
       return true;

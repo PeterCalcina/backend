@@ -14,7 +14,7 @@ model InventoryItem {
   sku       String     @unique
   qty       Int
   cost      Float
-  lastEntry DateTime
+  lastEntry DateTime?
   userId    String // Supabase UID
   movements Movement[]
   createdAt DateTime   @default(now())
