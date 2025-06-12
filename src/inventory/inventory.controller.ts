@@ -6,13 +6,13 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   ParseIntPipe,
 } from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryService } from './inventory.service';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { User } from 'src/auth/user.decorator';
+import { successResponse } from 'src/common/responses/success-response';
 
 @Controller('inventory')
 export class InventoryController {
@@ -32,8 +32,9 @@ export class InventoryController {
   }
 
   @Get('/:id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.inventoryService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const item = await this.inventoryService.findOne(id);
+    return successResponse(item, 'Inventario encontrado');
   }
 
   @Patch('/:id')

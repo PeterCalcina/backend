@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
@@ -28,11 +28,14 @@ export class InventoryService {
   }
 
   async findOne(id: number) {
-    return this.prisma.inventoryItem.findUnique({
+    const item = await this.prisma.inventoryItem.findUnique({
       where: {
         id,
       },
     });
+
+    if (!item) throw new NotFoundException('Inventario no encontrado');
+    return item;
   }
 
   async update(id: number, updateInventoryDto: UpdateInventoryDto) {
