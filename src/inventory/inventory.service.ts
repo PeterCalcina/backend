@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
@@ -25,7 +29,10 @@ export class InventoryService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new BadRequestException({ message: 'El SKU ya existe', technicalMessage: `A product with SKU '${createInventoryDto.sku}' already exists.` });
+          throw new BadRequestException({
+            message: 'El SKU ya existe',
+            technicalMessage: `A product with SKU '${createInventoryDto.sku}' already exists.`,
+          });
         }
       }
       throw error;
@@ -40,7 +47,7 @@ export class InventoryService {
       },
     });
 
-    return items; 
+    return items;
   }
 
   async findOne(id: number) {
@@ -52,7 +59,10 @@ export class InventoryService {
     });
 
     if (!item) {
-      throw new NotFoundException({ message: 'El producto no existe', technicalMessage: `Inventory item with ID ${id} not found.` });
+      throw new NotFoundException({
+        message: 'El producto no existe',
+        technicalMessage: `Inventory item with ID ${id} not found.`,
+      });
     }
     return item;
   }
@@ -63,21 +73,45 @@ export class InventoryService {
         where: { id },
         data: updateInventoryDto,
       });
-      
+
       return item;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         // P2025: Producto no encontrado
         if (error.code === 'P2025') {
-          throw new NotFoundException({ message: 'El producto no existe', technicalMessage: `Inventory item with ID ${id} not found for update.` });
+          throw new NotFoundException({
+            message: 'El producto no existe',
+            technicalMessage: `Inventory item with ID ${id} not found for update.`,
+          });
         }
         // P2002: SKU ya existe
         if (error.code === 'P2002') {
-          throw new BadRequestException({ message: 'El SKU ya existe', technicalMessage: `SKU '${updateInventoryDto.sku}' already exists.` });
+          throw new BadRequestException({
+            message: 'El SKU ya existe',
+            technicalMessage: `SKU '${updateInventoryDto.sku}' already exists.`,
+          });
         }
       }
       throw error;
     }
+  }
+
+  async updateCost(
+    id: number,
+    cost: number,
+    qty: number,
+    prisma: Prisma.TransactionClient = this.prisma,
+  ) {
+    const item = await this.findOne(id);
+
+    await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        cost,
+        qty: { increment: qty },
+        lastEntry: new Date(),
+      },
+    });
   }
 
   async delete(id: number) {
@@ -90,7 +124,10 @@ export class InventoryService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
-          throw new NotFoundException({ message: 'El producto no existe', technicalMessage: `Inventory item with ID ${id} not found for deletion.` });
+          throw new NotFoundException({
+            message: 'El producto no existe',
+            technicalMessage: `Inventory item with ID ${id} not found for deletion.`,
+          });
         }
       }
       throw error;

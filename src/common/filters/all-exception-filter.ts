@@ -40,7 +40,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         // Caso 1: Errores de ValidationPipe (message es un array)
         if (responseObject.message && Array.isArray(responseObject.message)) {
           userFriendlyMessage =
-            'Validación falló. Por favor, verifique los datos sean correctos.';
+            'La validación falló. Por favor, verifique los datos sean correctos.';
           errorDetails = responseObject.message;
         }
         // Caso 2: Mensaje personalizado (ej. { message: '...', technicalMessage: '...' })
