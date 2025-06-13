@@ -7,7 +7,7 @@ import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { Prisma } from '@prisma/client';
-import { UpdateInventoryAfterSaleDto } from './dto/update-after-sale.dto';
+import { UpdateInventoryAfterMovementDto } from './dto/update-after-movement.dto';
 
 @Injectable()
 export class InventoryService {
@@ -115,9 +115,9 @@ export class InventoryService {
     });
   }
 
-  async updateAfterSale(
+  async updateAfterMovement(
     id: number,
-    updateInventoryDto: UpdateInventoryAfterSaleDto,
+    updateInventoryDto: UpdateInventoryAfterMovementDto,
     prisma: Prisma.TransactionClient = this.prisma,
   ) {
     const item = await this.findOne(id);

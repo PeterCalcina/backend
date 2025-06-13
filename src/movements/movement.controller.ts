@@ -31,16 +31,16 @@ export class MovementController {
     switch (movementDto.type) {
       case MovementType.ENTRY:
         const movement = await this.movementService.entry(movementDto);
-        return successResponse(movement, 'Movimiento creado correctamente');
+        return successResponse(movement, 'Entrada realizada correctamente');
       case MovementType.SALE:
         const saleMovement = await this.movementService.sale(movementDto);
-        return successResponse(saleMovement, 'Movimiento creado correctamente');
+        return successResponse(saleMovement, 'Venta realizada correctamente');
       case MovementType.EXPIRATION:
         const expirationMovement = await this.movementService.expiration(movementDto);
-        return successResponse(expirationMovement, 'Movimiento creado correctamente');
+        return successResponse(expirationMovement, 'Eliminación de producto expirado realizado correctamente.');
       case MovementType.EXIT:
         const exitMovement = await this.movementService.exit(movementDto);
-        return successResponse(exitMovement, 'Movimiento creado correctamente');
+        return successResponse(exitMovement, 'Salida de producto realizada correctamente');
       default:
         throw new BadRequestException({
           message: 'Tipo de movimiento inválido.',

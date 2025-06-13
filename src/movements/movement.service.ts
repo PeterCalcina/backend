@@ -39,9 +39,9 @@ export class MovementService {
     });
   }
 
-  findOneByBatchCode(batchCode: string) {
+  findOneByBatchCode(batchCode: string, type: MovementType, prisma: Prisma.TransactionClient = this.prisma) {
     return this.prisma.movement.findFirst({
-      where: { batchCode },
+      where: { batchCode, type, remainingQuantity: { gt: 0 } },
     });
   }
 
@@ -213,7 +213,7 @@ export class MovementService {
           },
         });
 
-        await this.inventoryService.updateAfterSale(
+        await this.inventoryService.updateAfterMovement(
           saleMovementDto.itemId,
           {
             qty: saleMovementDto.quantity,
@@ -267,16 +267,64 @@ export class MovementService {
   }
 
   async expiration(expirationMovementDto: MovementDto) {
-    return await this.prisma.$transaction(async (tx) => {
-      const movement = await tx.movement.create({
-        data: {
-          ...expirationMovementDto,
-          remainingQuantity: expirationMovementDto.quantity,
-          batchCode: expirationMovementDto.batchCode,
-        },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const entry = await this.findOneByBatchCode(expirationMovementDto.batchCode, MovementType.ENTRY, tx);
 
-      return movement;
-    });
+        if (!entry) {
+          throw new BadRequestException({
+            message: 'No se encontró el lote especificado',
+            technicalMessage: 'Batch not found',
+          });
+        }
+
+        if (entry.remainingQuantity < expirationMovementDto.quantity) {
+          throw new BadRequestException({
+            message: 'La cantidad a expirar excede el stock disponible del lote',
+            technicalMessage: 'Expiration quantity exceeds available batch stock',
+          });
+        }
+
+        await tx.movement.update({
+          where: { id: entry.id },
+          data: {
+            remainingQuantity: 0,
+          },
+        });
+
+        const movement = await tx.movement.create({
+          data: {
+            ...expirationMovementDto,
+            type: MovementType.EXPIRATION,
+            batchCode: expirationMovementDto.batchCode,
+          },
+        });
+
+        const remainingEntries = await this.findEntriesByItemId(
+          expirationMovementDto.itemId,
+          tx,
+        );
+
+        await this.inventoryService.updateAfterMovement(
+          expirationMovementDto.itemId,
+          {
+            qty: expirationMovementDto.quantity,
+            cost: remainingEntries.length > 0 ? calculateWeightedAverageCost(remainingEntries) : undefined,
+          },
+          tx,
+        );
+
+        return movement;
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException({
+        message: 'Error al procesar la eliminación de producto expirado',
+        technicalMessage: 'Error processing the expiration movement: ' + error.message,
+      });
+    }
   }
 }

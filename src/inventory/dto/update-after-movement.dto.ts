@@ -1,6 +1,6 @@
 import { IsNumber, IsOptional } from "class-validator";
 
-export class UpdateInventoryAfterSaleDto {
+export class UpdateInventoryAfterMovementDto {
   @IsNumber()
   qty: number;
 
