@@ -14,6 +14,12 @@ export class MovementController {
     return successResponse(movements, 'Movimientos encontrados correctamente');
   }
 
+  @Get('entries')
+  async findAllEntries() {
+    const movements = await this.movementService.findAllEntries();
+    return successResponse(movements, 'Movimientos encontrados correctamente');
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: number) {
     const movement = await this.movementService.findOne(id);

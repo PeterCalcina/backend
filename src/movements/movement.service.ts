@@ -28,6 +28,17 @@ export class MovementService {
     });
   }
 
+  findAllEntries() {
+    return this.prisma.movement.findMany({
+      where: {
+        type: MovementType.ENTRY,
+        remainingQuantity: { gt: 0 },
+        expirationDate: { not: null },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   findOneByBatchCode(batchCode: string) {
     return this.prisma.movement.findFirst({
       where: { batchCode },
