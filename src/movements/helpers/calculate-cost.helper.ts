@@ -1,9 +1,17 @@
-import { Movement } from '@prisma/client';
+import { Movement } from "@prisma/client";
 
-export function calculateCost(entries: Movement[], qty: number, unitCost: number): number {
-  if (entries.length === 0) return unitCost;
+export function calculateWeightedAverageCost(
+  entries: Movement[],
+  newQty: number = 0,
+  newUnitCost: number = 0
+): number {
+  const totalQty = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const totalCost = entries.reduce((sum, entry) => sum + entry.unitCost * entry.quantity, 0);
 
-  const totalCost = entries.reduce((acc, entry) => acc + entry.unitCost * entry.quantity, 0);
-  const totalQty = entries.reduce((acc, entry) => acc + entry.quantity, 0);
-  return (totalCost + unitCost * qty) / (totalQty + qty);
+  const combinedQty = totalQty + newQty;
+  const combinedCost = totalCost + newUnitCost * newQty;
+
+  if (combinedQty === 0) return 0;
+
+  return combinedCost / combinedQty;
 }

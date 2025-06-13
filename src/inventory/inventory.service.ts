@@ -7,6 +7,7 @@ import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { Prisma } from '@prisma/client';
+import { UpdateInventoryAfterSaleDto } from './dto/update-after-sale.dto';
 
 @Injectable()
 export class InventoryService {
@@ -96,7 +97,7 @@ export class InventoryService {
     }
   }
 
-  async updateCost(
+  async updateCostAfterEntry(
     id: number,
     cost: number,
     qty: number,
@@ -110,6 +111,22 @@ export class InventoryService {
         cost,
         qty: { increment: qty },
         lastEntry: new Date(),
+      },
+    });
+  }
+
+  async updateAfterSale(
+    id: number,
+    updateInventoryDto: UpdateInventoryAfterSaleDto,
+    prisma: Prisma.TransactionClient = this.prisma,
+  ) {
+    const item = await this.findOne(id);
+
+    await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        cost: updateInventoryDto.cost ?? item.cost,
+        qty: { decrement: updateInventoryDto.qty },
       },
     });
   }

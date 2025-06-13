@@ -25,13 +25,12 @@ model InventoryItem {
 
 model Movement {
   id                Int           @id @default(autoincrement())
-  batchCode         String        @unique
-  name              String
+  batchCode         String
   type              MovementType
   quantity          Int
-  unitCost          Float
-  remainingQuantity Int
-  expirationDate    DateTime
+  unitCost          Float         @default(0)
+  remainingQuantity Int           @default(0)
+  expirationDate    DateTime?
   description       String
   item              InventoryItem @relation(fields: [itemId], references: [id])
   itemId            Int
