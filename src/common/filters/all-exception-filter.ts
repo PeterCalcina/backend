@@ -42,6 +42,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
           userFriendlyMessage =
             'La validación falló. Por favor, verifique los datos sean correctos.';
           errorDetails = responseObject.message;
+          this.logger.error(
+            `Validation Error: ${JSON.stringify(responseObject.message)}`,
+            null,
+            request.url,
+          );
         }
         // Caso 2: Mensaje personalizado (ej. { message: '...', technicalMessage: '...' })
         else if (responseObject.message) {
