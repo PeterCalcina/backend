@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { MovementDto } from './dto/movement.dto';
 import { MovementService } from './movement.service';
 import { successResponse } from 'src/common/responses/success-response';
@@ -11,6 +11,12 @@ export class MovementController {
   @Get()
   async findAll() {
     const movements = await this.movementService.findAll();
+    return successResponse(movements, 'Movimientos encontrados correctamente');
+  }
+
+  @Get('entries-by-expiration-date')
+  async findAllEntriesByExpirationDate() {
+    const movements = await this.movementService.findAllEntriesByExpirationDate();
     return successResponse(movements, 'Movimientos encontrados correctamente');
   }
 

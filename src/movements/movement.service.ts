@@ -6,7 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { calculateWeightedAverageCost } from './helpers/calculate-cost.helper';
 import { InventoryService } from 'src/inventory/inventory.service';
-import { MovementType, Prisma } from '@prisma/client';
+import { Movement, MovementType, Prisma } from '@prisma/client';
 import { MovementDto } from './dto/movement.dto';
 
 @Injectable()
@@ -28,7 +28,7 @@ export class MovementService {
     });
   }
 
-  findAllEntries() {
+  findAllEntriesByExpirationDate() {
     return this.prisma.movement.findMany({
       where: {
         type: MovementType.ENTRY,
@@ -39,8 +39,22 @@ export class MovementService {
     });
   }
 
-  findOneByBatchCode(batchCode: string, type: MovementType, prisma: Prisma.TransactionClient = this.prisma) {
-    return this.prisma.movement.findFirst({
+  findAllEntries() {
+    return this.prisma.movement.findMany({
+      where: {
+        type: MovementType.ENTRY,
+        remainingQuantity: { gt: 0 },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  findOneByBatchCode(
+    batchCode: string,
+    type: MovementType,
+    prisma: Prisma.TransactionClient = this.prisma,
+  ) {
+    return prisma.movement.findFirst({
       where: { batchCode, type, remainingQuantity: { gt: 0 } },
     });
   }
@@ -85,7 +99,6 @@ export class MovementService {
           data: {
             ...entryMovementDto,
             remainingQuantity: entryMovementDto.quantity,
-            batchCode: entryMovementDto.batchCode,
           },
         });
 
@@ -210,6 +223,7 @@ export class MovementService {
             ...saleMovementDto,
             type: MovementType.SALE,
             batchCode: batchSummary,
+            remainingQuantity: 0,
           },
         });
 
@@ -255,21 +269,91 @@ export class MovementService {
   }
 
   async exit(exitMovementDto: MovementDto) {
-    // return await this.prisma.$transaction(async (tx) => {
-    //   const movement = await tx.movement.create({
-    //     data: {
-    //       ...exitMovementDto,
-    //       remainingQuantity: exitMovementDto.quantity,
-    //     },
-    //   });
-    //   return movement;
-    // });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        let remainingStock = 0;
+
+        const entry = await this.findOneByBatchCode(
+          exitMovementDto.batchCode,
+          MovementType.ENTRY,
+          tx,
+        );
+
+        if (!entry) {
+          throw new BadRequestException({
+            message: 'No se encontró el lote especificado',
+            technicalMessage: 'Batch not found',
+          });
+        }
+
+        remainingStock = entry.remainingQuantity - exitMovementDto.quantity;
+
+        if (remainingStock < 0) {
+          throw new BadRequestException({
+            message: `La cantidad a sacar excede el stock disponible en el lote`,
+            technicalMessage: 'Exit quantity exceeds remaining stock in batch',
+          });
+        }
+
+        await tx.movement.update({
+          where: { id: entry.id },
+          data: {
+            remainingQuantity: remainingStock,
+          },
+        });
+
+        const movement = await tx.movement.create({
+          data: {
+            ...exitMovementDto,
+            type: MovementType.EXIT,
+            unitCost: entry.unitCost,
+            remainingQuantity: 0,
+          },
+        });
+
+        let remainingEntries: Movement[] = [];
+
+        if(remainingStock === 0) {
+          remainingEntries = await this.findEntriesByItemId(
+            exitMovementDto.itemId,
+            tx,
+          );
+        }
+
+        await this.inventoryService.updateAfterMovement(
+          exitMovementDto.itemId,
+          {
+            qty: exitMovementDto.quantity,
+            cost:
+              remainingStock === 0
+                ? calculateWeightedAverageCost(remainingEntries)
+                : undefined,
+          },
+          tx,
+        );
+
+        return movement;
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException({
+        message: 'Error al procesar la salida',
+        technicalMessage: 'Error processing the exit: ' + error.message,
+      });
+    }
   }
 
   async expiration(expirationMovementDto: MovementDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const entry = await this.findOneByBatchCode(expirationMovementDto.batchCode, MovementType.ENTRY, tx);
+        const entry = await this.findOneByBatchCode(
+          expirationMovementDto.batchCode,
+          MovementType.ENTRY,
+          tx,
+        );
 
         if (!entry) {
           throw new BadRequestException({
@@ -280,8 +364,10 @@ export class MovementService {
 
         if (entry.remainingQuantity < expirationMovementDto.quantity) {
           throw new BadRequestException({
-            message: 'La cantidad a expirar excede el stock disponible del lote',
-            technicalMessage: 'Expiration quantity exceeds available batch stock',
+            message:
+              'La cantidad a expirar excede el stock disponible del lote',
+            technicalMessage:
+              'Expiration quantity exceeds available batch stock',
           });
         }
 
@@ -296,7 +382,7 @@ export class MovementService {
           data: {
             ...expirationMovementDto,
             type: MovementType.EXPIRATION,
-            batchCode: expirationMovementDto.batchCode,
+            remainingQuantity: 0,
           },
         });
 
@@ -309,7 +395,10 @@ export class MovementService {
           expirationMovementDto.itemId,
           {
             qty: expirationMovementDto.quantity,
-            cost: remainingEntries.length > 0 ? calculateWeightedAverageCost(remainingEntries) : undefined,
+            cost:
+              remainingEntries.length > 0
+                ? calculateWeightedAverageCost(remainingEntries)
+                : undefined,
           },
           tx,
         );
@@ -323,7 +412,8 @@ export class MovementService {
 
       throw new BadRequestException({
         message: 'Error al procesar la eliminación de producto expirado',
-        technicalMessage: 'Error processing the expiration movement: ' + error.message,
+        technicalMessage:
+          'Error processing the expiration movement: ' + error.message,
       });
     }
   }

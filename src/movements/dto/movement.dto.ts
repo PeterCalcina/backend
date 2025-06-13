@@ -29,9 +29,8 @@ export class MovementDto {
   @IsString({ message: 'La descripción debe ser una cadena de texto.' })
   description: string;
 
-  @IsOptional()
   @IsString({ message: 'El código de lote debe ser una cadena de texto.' })
-  batchCode?: string;
+  batchCode: string;
 
   @IsOptional()
   @IsDate ({ message: 'La fecha de expiración debe ser una fecha válida.' })
