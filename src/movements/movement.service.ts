@@ -46,7 +46,7 @@ export class MovementService {
   ) {
     return prisma.movement.findMany({
       where: { itemId, type: 'ENTRY', remainingQuantity: { gt: 0 } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -138,12 +138,7 @@ export class MovementService {
   ) {
     const entries = await this.findEntriesByItemId(itemId, tx);
     let remainingQty = quantity;
-    let multipleBatchesUsed = false;
-    let usedBatches = [];
-
-    if (entries[0].remainingQuantity - remainingQty <= 0) {
-      multipleBatchesUsed = true;
-    }
+    const usedBatches = new Set<string>();
 
     for (const entry of entries) {
       if (remainingQty <= 0) break;
@@ -158,7 +153,7 @@ export class MovementService {
       });
 
       remainingQty -= consumeQty;
-      usedBatches.push(entry.batchCode);
+      usedBatches.add(entry.batchCode);
     }
 
     if (remainingQty > 0) {
@@ -168,7 +163,12 @@ export class MovementService {
       });
     }
 
-    return { multipleBatchesUsed, usedBatches };
+    const multipleBatchesUsed = usedBatches.size > 1;
+
+    return {
+      multipleBatchesUsed,
+      usedBatches: Array.from(usedBatches),
+    };
   }
 
   async sale(saleMovementDto: MovementDto) {
@@ -184,7 +184,10 @@ export class MovementService {
         );
 
         if (multipleBatchesUsed) {
-          const entries = await this.findEntriesByItemId(saleMovementDto.itemId, tx);
+          const entries = await this.findEntriesByItemId(
+            saleMovementDto.itemId,
+            tx,
+          );
           cost = calculateWeightedAverageCost(entries);
           batchSummary = usedBatches.join(',');
         } else {
@@ -201,7 +204,10 @@ export class MovementService {
 
         await this.inventoryService.updateAfterSale(
           saleMovementDto.itemId,
-          { qty: saleMovementDto.quantity, cost: multipleBatchesUsed ? cost : undefined },
+          {
+            qty: saleMovementDto.quantity,
+            cost: multipleBatchesUsed ? cost : undefined,
+          },
           tx,
         );
 
