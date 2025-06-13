@@ -17,6 +17,8 @@ export class InventoryService {
         data: {
           ...createInventoryDto,
           userId: userId,
+          qty: 0,
+          cost: 0,
         },
       });
       return item;
@@ -34,6 +36,7 @@ export class InventoryService {
     const items = await this.prisma.inventoryItem.findMany({
       where: {
         userId: userId,
+        status: 'ACTIVE',
       },
     });
 
@@ -44,6 +47,7 @@ export class InventoryService {
     const item = await this.prisma.inventoryItem.findUnique({
       where: {
         id,
+        status: 'ACTIVE',
       },
     });
 
@@ -78,8 +82,9 @@ export class InventoryService {
 
   async delete(id: number) {
     try {
-      const item = await this.prisma.inventoryItem.delete({
+      const item = await this.prisma.inventoryItem.update({
         where: { id },
+        data: { status: 'INACTIVE' },
       });
       return item;
     } catch (error) {

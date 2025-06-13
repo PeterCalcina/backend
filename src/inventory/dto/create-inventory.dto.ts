@@ -10,16 +10,16 @@ export class CreateInventoryDto {
   @IsString()
   sku: string;
 
-  @IsNumber()
-  @IsInt()
-  @Min(0)
-  @IsPositive()
-  @Type(() => Number)
-  qty: number;
+  // @IsNumber()
+  // @IsInt()
+  // @Min(0)
+  // @IsPositive()
+  // @Type(() => Number)
+  // qty: number;
 
-  @IsNumber()
-  @Min(0)
-  @IsPositive()
-  @Type(() => Number)
-  cost: number;
+  // @IsNumber()
+  // @Min(0)
+  // @IsPositive()
+  // @Type(() => Number)
+  // cost: number;
 }

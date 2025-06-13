@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNotEmpty, IsNumber, Min } from 'class-validator';
+import { IsDate, IsEnum, IsInt, IsNotEmpty, IsNumber, Min } from 'class-validator';
 import { MovementType } from '@prisma/client';
 
 export class CreateMovementDto {
@@ -14,7 +14,17 @@ export class CreateMovementDto {
   unitCost: number;
 
   @IsNotEmpty()
+  @IsInt()
+  @Min(0)
+  remainingQuantity: number;
+
+  @IsNotEmpty()
+  @IsDate()
   date: Date;
+
+  @IsNotEmpty()
+  @IsDate()
+  expirationDate: Date;
 
   @IsInt()
   itemId: number;

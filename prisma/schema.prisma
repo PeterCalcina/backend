@@ -12,11 +12,12 @@ model InventoryItem {
   id        Int        @id @default(autoincrement())
   name      String
   sku       String     @unique
-  qty       Int
-  cost      Float
+  qty       Int?
+  cost      Float?
   lastEntry DateTime?
   userId    String // Supabase UID
   movements Movement[]
+  status    Status    @default(ACTIVE)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
@@ -26,9 +27,12 @@ model Movement {
   type      MovementType
   quantity  Int
   unitCost  Float
+  remainingQuantity Int
   date      DateTime
+  expirationDate DateTime?
   item      InventoryItem @relation(fields: [itemId], references: [id])
   itemId    Int
+  status    Status        @default(ACTIVE)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
@@ -38,4 +42,9 @@ enum MovementType {
   EXIT
   EXPIRATION
   SALE
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
 }

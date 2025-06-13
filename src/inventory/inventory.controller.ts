@@ -46,12 +46,12 @@ export class InventoryController {
     @Body() updateInventoryDto: UpdateInventoryDto,
   ) {
     const item = await this.inventoryService.update(id, updateInventoryDto);
-    return successResponse(item, 'Producto actualizado', HttpStatus.OK);
+    return successResponse(item, 'Producto actualizado correctamente', HttpStatus.OK);
   }
 
   @Delete('/:id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     const item = await this.inventoryService.delete(id);
-    return successResponse(item, 'Producto eliminado', HttpStatus.OK);
+    return successResponse(item, 'Producto eliminado correctamente', HttpStatus.OK);
   }
 }

@@ -7,10 +7,6 @@ export const generalRateLimiter = rateLimit({
   max: 100, // Limita a 100 peticiones por ventana de tiempo
   standardHeaders: 'draft-7', // Devuelve la información de límite de peticiones en los headers `RateLimit-*`
   legacyHeaders: false, // Desactiva los headers `X-RateLimit-*`
-  keyGenerator: (req: Request) => {
-    const { id } = req.user as { id: string };
-    return id || req.ip;
-  },
   handler: (req: Request, res: Response, next: NextFunction) => {
     next(
       new HttpException(
