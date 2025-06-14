@@ -4,6 +4,7 @@ import { GetCurrentStockDto } from './dtos/get-current-stock.dto';
 import { GetMovementHistoryDto } from './dtos/get-movement-history.dto';
 import { isPast, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
 import { GetExpiringStockDto } from './dtos/get-expiring-stock.dto';
+import { QueryGetMovement } from './helpers/query-get-movement.helper';
 
 @Injectable()
 export class ReportsService {
@@ -23,8 +24,10 @@ export class ReportsService {
       name: itemName ? { contains: itemName, mode: 'insensitive' } : undefined,
     };
 
-    Object.keys(where).forEach(key => where[key] === undefined && delete where[key]);
-    
+    Object.keys(where).forEach(
+      (key) => where[key] === undefined && delete where[key],
+    );
+
     const totalItems = await this.prisma.inventoryItem.count({ where });
 
     const items = await this.prisma.inventoryItem.findMany({
@@ -39,11 +42,11 @@ export class ReportsService {
       take,
     });
 
-    const formattedItems = items.map(item => ({
+    const formattedItems = items.map((item) => ({
       ...item,
       currentTotalValue: item.qty * item.cost,
       unitCost: item.cost,
-      totalQuantity: item.qty
+      totalQuantity: item.qty,
     }));
 
     return {
@@ -56,24 +59,37 @@ export class ReportsService {
   }
 
   async getMovementHistory(query: GetMovementHistoryDto) {
-    const { startDate, endDate, itemId, movementType, batchCode, page, pageSize } = query;
+    const {
+      startDate,
+      endDate,
+      itemId,
+      movementType,
+      batchCode,
+      page,
+      pageSize,
+    } = query;
+
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-  
-    const where: any = {
+
+    const where: QueryGetMovement = {
       createdAt: {
         gte: startDate,
         lte: endDate,
-      },  
+      },
       itemId,
       type: movementType,
-      batchCode: batchCode ? { contains: batchCode, mode: 'insensitive' } : undefined,
+      batchCode: batchCode
+        ? { contains: batchCode, mode: 'insensitive' }
+        : undefined,
     };
-  
-    Object.keys(where).forEach(key => where[key] === undefined && delete where[key]);
-  
+
+    Object.keys(where).forEach(
+      (key) => where[key] === undefined && delete where[key],
+    );
+
     const totalItems = await this.prisma.movement.count({ where });
-  
+
     const movements = await this.prisma.movement.findMany({
       where,
       select: {
@@ -96,8 +112,8 @@ export class ReportsService {
       skip,
       take,
     });
-  
-    const formattedMovements = movements.map(m => ({
+
+    const formattedMovements = movements.map((m) => ({
       ...m,
       productName: m.item?.name,
       item: undefined,
@@ -116,10 +132,10 @@ export class ReportsService {
     const { status, daysUntilExpiration, itemId, page, pageSize } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-  
+
     const today = startOfDay(new Date());
-    const futureDate = endOfDay(addDays(today, daysUntilExpiration)); 
-  
+    const futureDate = endOfDay(addDays(today, daysUntilExpiration));
+
     const where: any = {
       type: 'ENTRY',
       remainingQuantity: {
@@ -130,18 +146,20 @@ export class ReportsService {
       },
       itemId,
     };
-  
+
     if (status === 'expired') {
       where.expirationDate.lte = today;
     } else if (status === 'expiring-soon') {
       where.expirationDate.gte = today;
       where.expirationDate.lte = futureDate;
     }
-  
-    Object.keys(where).forEach(key => where[key] === undefined && delete where[key]);
-  
+
+    Object.keys(where).forEach(
+      (key) => where[key] === undefined && delete where[key],
+    );
+
     const totalItems = await this.prisma.movement.count({ where });
-  
+
     const expiringMovements = await this.prisma.movement.findMany({
       where,
       select: {
@@ -165,15 +183,15 @@ export class ReportsService {
       skip,
       take,
     });
-    
-    const formattedExpiringMovements = expiringMovements.map(m => ({
+
+    const formattedExpiringMovements = expiringMovements.map((m) => ({
       ...m,
       productName: m.item?.name,
       productId: m.item?.id,
       isExpired: m.expirationDate ? isPast(m.expirationDate) : false,
       item: undefined,
     }));
-  
+
     return {
       data: formattedExpiringMovements,
       total: totalItems,
