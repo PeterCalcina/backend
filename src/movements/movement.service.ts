@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { calculateWeightedAverageCost } from './helpers/calculate-cost.helper';
@@ -11,6 +12,8 @@ import { MovementDto, UpdateMovementDto } from './dto';
 
 @Injectable()
 export class MovementService {
+  private readonly logger = new Logger(MovementService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService,
@@ -89,24 +92,26 @@ export class MovementService {
   }
 
   async entry(entryMovementDto: MovementDto) {
-    const entry = await this.findOneByBatchCodeAndType(
-      entryMovementDto.batchCode,
-      MovementType.ENTRY,
-    );
-
-    if (entry) {
-      throw new BadRequestException({
-        message: 'Ya existe una entrada con este código de lote',
-        technicalMessage: 'An entry with this batch code already exists',
-      });
-    }
-
     try {
+      this.logger.log(`Iniciando entrada de producto: ${JSON.stringify(entryMovementDto)}`);
+      const entry = await this.findOneByBatchCodeAndType(
+        entryMovementDto.batchCode,
+        MovementType.ENTRY,
+      );
+
+      if (entry) {
+        throw new BadRequestException({
+          message: 'Ya existe una entrada con este código de lote',
+          technicalMessage: 'An entry with this batch code already exists',
+        });
+      }
+
       return await this.prisma.$transaction(async (tx) => {
         const entries = await this.findEntriesByItemId(
           entryMovementDto.itemId,
           tx,
         );
+        this.logger.debug(`Entradas encontradas para el item ${entryMovementDto.itemId}: ${entries.length}`);
 
         const movement = await tx.movement.create({
           data: {
@@ -114,12 +119,14 @@ export class MovementService {
             remainingQuantity: entryMovementDto.quantity,
           },
         });
+        this.logger.log(`Movimiento de entrada creado: ${movement.id}`);
 
         const cost = calculateWeightedAverageCost(
           entries,
           entryMovementDto.quantity,
           entryMovementDto.unitCost,
         );
+        this.logger.debug(`Costo calculado: ${cost}`);
 
         await this.inventoryService.updateCostAfterEntry(
           entryMovementDto.itemId,
@@ -127,10 +134,15 @@ export class MovementService {
           entryMovementDto.quantity,
           tx,
         );
+        this.logger.log(`Inventario actualizado para el item ${entryMovementDto.itemId}`);
 
         return movement;
       });
     } catch (error) {
+      this.logger.error(
+        `Error en entrada de producto: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         switch (error.code) {
           case 'P2002':
@@ -209,8 +221,9 @@ export class MovementService {
   }
 
   async sale(saleMovementDto: MovementDto) {
-    let cost = 0;
     try {
+      this.logger.log(`Iniciando venta: ${JSON.stringify(saleMovementDto)}`);
+      let cost = 0;
       return await this.prisma.$transaction(async (tx) => {
         let batchSummary = '';
 
@@ -239,6 +252,7 @@ export class MovementService {
             remainingQuantity: 0,
           },
         });
+        this.logger.log(`Movimiento de venta creado: ${movement.id}`);
 
         await this.inventoryService.updateAfterMovement(
           saleMovementDto.itemId,
@@ -248,41 +262,31 @@ export class MovementService {
           },
           tx,
         );
+        this.logger.log(`Inventario actualizado después de la venta para el item ${saleMovementDto.itemId}`);
 
         return movement;
       });
     } catch (error) {
+      this.logger.error(
+        `Error en venta: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof BadRequestException) {
-        throw error;
+        throw new BadRequestException({
+          message: 'Error al procesar la venta',
+          technicalMessage: 'Error processing the sale: ' + error.message,
+        });
       }
-
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        switch (error.code) {
-          case 'P2003':
-            throw new BadRequestException({
-              message: 'El item referenciado no existe en el inventario',
-              technicalMessage:
-                'The referenced item does not exist in the inventory',
-            });
-          default:
-            throw new BadRequestException({
-              message: 'Error al procesar el movimiento de venta',
-              technicalMessage:
-                'Error processing the sale movement: ' + error.message,
-            });
-        }
-      }
-
       throw new BadRequestException({
-        message: 'Error inesperado al procesar la venta',
-        technicalMessage:
-          'Unexpected error processing the sale: ' + error.message,
+        message: 'Error al procesar la venta',
+        technicalMessage: 'Error processing the sale: ' + error.message,
       });
     }
   }
 
   async exit(exitMovementDto: MovementDto) {
     try {
+      this.logger.log(`Iniciando salida por lote: ${JSON.stringify(exitMovementDto)}`);
       return await this.prisma.$transaction(async (tx) => {
         let remainingStock = 0;
 
@@ -293,6 +297,7 @@ export class MovementService {
         );
 
         if (!entry) {
+          this.logger.warn(`Lote no encontrado: ${exitMovementDto.batchCode}`);
           throw new BadRequestException({
             message: 'No se encontró el lote especificado',
             technicalMessage: 'Batch not found',
@@ -302,6 +307,7 @@ export class MovementService {
         remainingStock = entry.remainingQuantity - exitMovementDto.quantity;
 
         if (remainingStock < 0) {
+          this.logger.warn(`Stock insuficiente en lote ${exitMovementDto.batchCode}. Stock actual: ${entry.remainingQuantity}, Cantidad solicitada: ${exitMovementDto.quantity}`);
           throw new BadRequestException({
             message: `La cantidad a sacar excede el stock disponible en el lote`,
             technicalMessage: 'Exit quantity exceeds remaining stock in batch',
@@ -314,6 +320,7 @@ export class MovementService {
             remainingQuantity: remainingStock,
           },
         });
+        this.logger.log(`Stock actualizado para el lote ${exitMovementDto.batchCode}. Nuevo stock: ${remainingStock}`);
 
         const movement = await tx.movement.create({
           data: {
@@ -323,6 +330,7 @@ export class MovementService {
             remainingQuantity: 0,
           },
         });
+        this.logger.log(`Movimiento de salida creado: ${movement.id}`);
 
         let remainingEntries: Movement[] = [];
 
@@ -331,6 +339,7 @@ export class MovementService {
             exitMovementDto.itemId,
             tx,
           );
+          this.logger.debug(`Entradas restantes encontradas: ${remainingEntries.length}`);
         }
 
         await this.inventoryService.updateAfterMovement(
@@ -344,14 +353,21 @@ export class MovementService {
           },
           tx,
         );
+        this.logger.log(`Inventario actualizado después de la salida para el item ${exitMovementDto.itemId}`);
 
         return movement;
       });
     } catch (error) {
+      this.logger.error(
+        `Error en salida por lote: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof BadRequestException) {
-        throw error;
+        throw new BadRequestException({
+          message: 'Error al procesar la salida',
+          technicalMessage: 'Error processing the exit: ' + error.message,
+        });
       }
-
       throw new BadRequestException({
         message: 'Error al procesar la salida',
         technicalMessage: 'Error processing the exit: ' + error.message,
@@ -361,6 +377,7 @@ export class MovementService {
 
   async expiration(expirationMovementDto: MovementDto) {
     try {
+      this.logger.log(`Iniciando expiración: ${JSON.stringify(expirationMovementDto)}`);
       return await this.prisma.$transaction(async (tx) => {
         const entry = await this.findOneByBatchCode(
           expirationMovementDto.batchCode,
@@ -369,18 +386,18 @@ export class MovementService {
         );
 
         if (!entry) {
+          this.logger.warn(`Lote no encontrado para expiración: ${expirationMovementDto.batchCode}`);
           throw new BadRequestException({
-            message: 'No se encontró el lote especificado',
-            technicalMessage: 'Batch not found',
+            message: 'No se encontró el lote especificado o no tiene stock disponible',
+            technicalMessage: 'Batch not found or has no available stock',
           });
         }
 
         if (entry.remainingQuantity < expirationMovementDto.quantity) {
+          this.logger.warn(`Cantidad de expiración excede el stock disponible. Stock: ${entry.remainingQuantity}, Cantidad solicitada: ${expirationMovementDto.quantity}`);
           throw new BadRequestException({
-            message:
-              'La cantidad a expirar excede el stock disponible del lote',
-            technicalMessage:
-              'Expiration quantity exceeds available batch stock',
+            message: 'La cantidad a expirar excede el stock disponible del lote',
+            technicalMessage: 'Expiration quantity exceeds available batch stock',
           });
         }
 
@@ -390,6 +407,7 @@ export class MovementService {
             remainingQuantity: 0,
           },
         });
+        this.logger.log(`Stock del lote ${expirationMovementDto.batchCode} actualizado a 0 por expiración`);
 
         const movement = await tx.movement.create({
           data: {
@@ -398,11 +416,13 @@ export class MovementService {
             remainingQuantity: 0,
           },
         });
+        this.logger.log(`Movimiento de expiración creado: ${movement.id}`);
 
         const remainingEntries = await this.findEntriesByItemId(
           expirationMovementDto.itemId,
           tx,
         );
+        this.logger.debug(`Entradas restantes encontradas: ${remainingEntries.length}`);
 
         await this.inventoryService.updateAfterMovement(
           expirationMovementDto.itemId,
@@ -415,35 +435,69 @@ export class MovementService {
           },
           tx,
         );
+        this.logger.log(`Inventario actualizado después de la expiración para el item ${expirationMovementDto.itemId}`);
 
         return movement;
       });
     } catch (error) {
+      this.logger.error(
+        `Error en expiración: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof BadRequestException) {
-        throw error;
+        throw new BadRequestException({
+          message: 'Error al procesar la expiración',
+          technicalMessage: 'Error processing the expiration: ' + error.message,
+        });
       }
-
       throw new BadRequestException({
         message: 'Error al procesar la eliminación de producto expirado',
-        technicalMessage:
-          'Error processing the expiration movement: ' + error.message,
+        technicalMessage: 'Error processing the expiration movement: ' + error.message,
       });
     }
   }
 
   async update(id: number, updateMovementDto: UpdateMovementDto) {
-    return await this.prisma.movement.update({
-      where: { id },
-      data: updateMovementDto,
-    });
+    try {
+      this.logger.log(`Actualizando movimiento ${id}: ${JSON.stringify(updateMovementDto)}`);
+      const movement = await this.prisma.movement.update({
+        where: { id },
+        data: updateMovementDto,
+      });
+      this.logger.log(`Movimiento ${id} actualizado exitosamente`);
+      return movement;
+    } catch (error) {
+      this.logger.error(
+        `Error al actualizar movimiento ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException({
+        message: 'Error al actualizar movimiento',
+        technicalMessage: error.message,
+      });
+    }
   }
 
   async delete(id: number) {
-    return await this.prisma.movement.update({
-      where: { id },
-      data: {
-        status: Status.INACTIVE,
-      },
-    });
+    try {
+      this.logger.log(`Eliminando movimiento ${id}`);
+      const movement = await this.prisma.movement.update({
+        where: { id },
+        data: {
+          status: Status.INACTIVE,
+        },
+      });
+      this.logger.log(`Movimiento ${id} eliminado exitosamente`);
+      return movement;
+    } catch (error) {
+      this.logger.error(
+        `Error al eliminar movimiento ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException({
+        message: 'Error al eliminar movimiento',
+        technicalMessage: error.message,
+      });
+    }
   }
 }

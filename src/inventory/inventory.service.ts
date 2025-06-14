@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -11,6 +12,8 @@ import { UpdateInventoryAfterMovementDto } from './dto/update-after-movement.dto
 
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async createInventory(
@@ -18,6 +21,7 @@ export class InventoryService {
     userId: string,
   ) {
     try {
+      this.logger.log(`Creando inventario para usuario ${userId}: ${JSON.stringify(createInventoryDto)}`);
       const item = await this.prisma.inventoryItem.create({
         data: {
           ...createInventoryDto,
@@ -26,8 +30,13 @@ export class InventoryService {
           cost: 0,
         },
       });
+      this.logger.log(`Inventario creado exitosamente: ${item.id}`);
       return item;
     } catch (error) {
+      this.logger.error(
+        `Error al crear inventario: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
           throw new BadRequestException({
@@ -36,22 +45,27 @@ export class InventoryService {
           });
         }
       }
-      throw error;
+      throw new BadRequestException({
+        message: 'Error al crear inventario',
+        technicalMessage: error.message,
+      });
     }
   }
 
   async findAll(userId: string) {
+    this.logger.log(`Buscando todos los items para usuario ${userId}`);
     const items = await this.prisma.inventoryItem.findMany({
       where: {
         userId: userId,
         status: 'ACTIVE',
       },
     });
-
+    this.logger.debug(`Encontrados ${items.length} items activos`);
     return items;
   }
 
   async findOne(id: number) {
+    this.logger.log(`Buscando item ${id}`);
     const item = await this.prisma.inventoryItem.findUnique({
       where: {
         id,
@@ -60,32 +74,37 @@ export class InventoryService {
     });
 
     if (!item) {
+      this.logger.warn(`Item ${id} no encontrado`);
       throw new NotFoundException({
         message: 'El producto no existe',
         technicalMessage: `Inventory item with ID ${id} not found.`,
       });
     }
+    this.logger.debug(`Item ${id} encontrado: ${JSON.stringify(item)}`);
     return item;
   }
 
   async update(id: number, updateInventoryDto: UpdateInventoryDto) {
     try {
+      this.logger.log(`Actualizando item ${id}: ${JSON.stringify(updateInventoryDto)}`);
       const item = await this.prisma.inventoryItem.update({
         where: { id },
         data: updateInventoryDto,
       });
-
+      this.logger.log(`Item ${id} actualizado exitosamente`);
       return item;
     } catch (error) {
+      this.logger.error(
+        `Error al actualizar item ${id}: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // P2025: Producto no encontrado
         if (error.code === 'P2025') {
           throw new NotFoundException({
             message: 'El producto no existe',
             technicalMessage: `Inventory item with ID ${id} not found for update.`,
           });
         }
-        // P2002: SKU ya existe
         if (error.code === 'P2002') {
           throw new BadRequestException({
             message: 'El SKU ya existe',
@@ -93,7 +112,10 @@ export class InventoryService {
           });
         }
       }
-      throw error;
+      throw new BadRequestException({
+        message: 'Error al actualizar item',
+        technicalMessage: error.message,
+      });
     }
   }
 
@@ -103,6 +125,7 @@ export class InventoryService {
     qty: number,
     prisma: Prisma.TransactionClient = this.prisma,
   ) {
+    this.logger.log(`Actualizando costo después de entrada para item ${id}. Costo: ${cost}, Cantidad: ${qty}`);
     const item = await this.findOne(id);
 
     await prisma.inventoryItem.update({
@@ -113,6 +136,7 @@ export class InventoryService {
         lastEntry: new Date(),
       },
     });
+    this.logger.log(`Costo y cantidad actualizados exitosamente para item ${id}`);
   }
 
   async updateAfterMovement(
@@ -120,6 +144,7 @@ export class InventoryService {
     updateInventoryDto: UpdateInventoryAfterMovementDto,
     prisma: Prisma.TransactionClient = this.prisma,
   ) {
+    this.logger.log(`Actualizando inventario después de movimiento para item ${id}: ${JSON.stringify(updateInventoryDto)}`);
     const item = await this.findOne(id);
 
     await prisma.inventoryItem.update({
@@ -129,16 +154,23 @@ export class InventoryService {
         qty: { decrement: updateInventoryDto.qty },
       },
     });
+    this.logger.log(`Inventario actualizado exitosamente para item ${id}`);
   }
 
   async delete(id: number) {
     try {
+      this.logger.log(`Eliminando item ${id}`);
       const item = await this.prisma.inventoryItem.update({
         where: { id },
         data: { status: 'INACTIVE' },
       });
+      this.logger.log(`Item ${id} eliminado exitosamente`);
       return item;
     } catch (error) {
+      this.logger.error(
+        `Error al eliminar item ${id}: ${error.message}`,
+        error.stack,
+      );
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
           throw new NotFoundException({
@@ -147,7 +179,10 @@ export class InventoryService {
           });
         }
       }
-      throw error;
+      throw new BadRequestException({
+        message: 'Error al eliminar item',
+        technicalMessage: error.message,
+      });
     }
   }
 }
