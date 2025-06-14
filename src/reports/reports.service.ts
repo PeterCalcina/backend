@@ -126,6 +126,7 @@ export class ReportsService {
           batchCode: true,
           description: true,
           expirationDate: true,
+          createdAt: true,
           item: {
             select: {
               name: true,
