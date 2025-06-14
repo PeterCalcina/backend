@@ -2,9 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Asegúrate de tenerlo
 import { GetCurrentStockDto } from './dtos/get-current-stock.dto';
 import { GetMovementHistoryDto } from './dtos/get-movement-history.dto';
-import { isPast, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
+import { isPast, startOfDay, endOfDay, addDays } from 'date-fns';
 import { GetExpiringStockDto } from './dtos/get-expiring-stock.dto';
-import { QueryGetMovement } from './helpers/query-get-movement.helper';
+import {
+  QueryGetMovement,
+  QueryGetCurrentStock,
+  QueryGetExpiringStock,
+} from './helpers';
 
 @Injectable()
 export class ReportsService {
@@ -15,7 +19,7 @@ export class ReportsService {
     const skip = (page - 1) * pageSize;
     const take = pageSize;
 
-    const where: any = {
+    const where: QueryGetCurrentStock = {
       qty: {
         gte: minQty,
         lte: maxQty,
@@ -136,22 +140,23 @@ export class ReportsService {
     const today = startOfDay(new Date());
     const futureDate = endOfDay(addDays(today, daysUntilExpiration));
 
-    const where: any = {
+    const where: QueryGetExpiringStock = {
       type: 'ENTRY',
-      remainingQuantity: {
-        gt: 0,
-      },
-      expirationDate: {
-        not: null,
-      },
       itemId,
     };
 
     if (status === 'expired') {
-      where.expirationDate.lte = today;
+      where.expirationDate = {
+        lte: today,
+      };
     } else if (status === 'expiring-soon') {
-      where.expirationDate.gte = today;
-      where.expirationDate.lte = futureDate;
+      where.remainingQuantity = {
+        gt: 0,
+      };
+      where.expirationDate = {
+        gte: today,
+        lte: futureDate,
+      };
     }
 
     Object.keys(where).forEach(
