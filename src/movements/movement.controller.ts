@@ -1,8 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { MovementDto } from './dto/movement.dto';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { MovementType } from '@prisma/client';
 import { MovementService } from './movement.service';
 import { successResponse } from 'src/common/responses/success-response';
-import { MovementType } from '@prisma/client';
+import { UpdateMovementDto, MovementDto } from './dto';
 
 @Controller('movements')
 export class MovementController {
@@ -53,5 +53,17 @@ export class MovementController {
           technicalMessage: 'Invalid movement type.',
         });
     }
+  }
+
+  @Patch(':id')
+  async updateMovement(@Param('id') id: number, @Body() updateMovementDto: UpdateMovementDto) {
+    const movement = await this.movementService.update(id, updateMovementDto);
+    return successResponse(movement, 'Entrada actualizada correctamente');
+  }
+
+  @Delete(':id')
+  async deleteMovement(@Param('id') id: number) {
+    const movement = await this.movementService.delete(id);
+    return successResponse(movement, 'Entrada eliminada correctamente');
   }
 }

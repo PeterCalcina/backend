@@ -6,8 +6,8 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { calculateWeightedAverageCost } from './helpers/calculate-cost.helper';
 import { InventoryService } from 'src/inventory/inventory.service';
-import { Movement, MovementType, Prisma } from '@prisma/client';
-import { MovementDto } from './dto/movement.dto';
+import { Movement, MovementType, Prisma, Status } from '@prisma/client';
+import { MovementDto, UpdateMovementDto } from './dto';
 
 @Injectable()
 export class MovementService {
@@ -18,13 +18,14 @@ export class MovementService {
 
   findAll() {
     return this.prisma.movement.findMany({
+      where: { status: Status.ACTIVE },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   findOne(id: number) {
     return this.prisma.movement.findUnique({
-      where: { id },
+      where: { id, status: Status.ACTIVE },
     });
   }
 
@@ -34,6 +35,7 @@ export class MovementService {
         type: MovementType.ENTRY,
         remainingQuantity: { gt: 0 },
         expirationDate: { not: null },
+        status: Status.ACTIVE,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -44,6 +46,7 @@ export class MovementService {
       where: {
         type: MovementType.ENTRY,
         remainingQuantity: { gt: 0 },
+        status: Status.ACTIVE,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -55,13 +58,18 @@ export class MovementService {
     prisma: Prisma.TransactionClient = this.prisma,
   ) {
     return prisma.movement.findFirst({
-      where: { batchCode, type, remainingQuantity: { gt: 0 } },
+      where: {
+        batchCode,
+        type,
+        remainingQuantity: { gt: 0 },
+        status: Status.ACTIVE,
+      },
     });
   }
 
   findOneByBatchCodeAndType(batchCode: string, type: MovementType) {
     return this.prisma.movement.findFirst({
-      where: { batchCode, type },
+      where: { batchCode, type, status: Status.ACTIVE },
     });
   }
 
@@ -70,7 +78,12 @@ export class MovementService {
     prisma: Prisma.TransactionClient = this.prisma,
   ) {
     return prisma.movement.findMany({
-      where: { itemId, type: 'ENTRY', remainingQuantity: { gt: 0 } },
+      where: {
+        itemId,
+        type: 'ENTRY',
+        remainingQuantity: { gt: 0 },
+        status: Status.ACTIVE,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -313,7 +326,7 @@ export class MovementService {
 
         let remainingEntries: Movement[] = [];
 
-        if(remainingStock === 0) {
+        if (remainingStock === 0) {
           remainingEntries = await this.findEntriesByItemId(
             exitMovementDto.itemId,
             tx,
@@ -416,5 +429,21 @@ export class MovementService {
           'Error processing the expiration movement: ' + error.message,
       });
     }
+  }
+
+  async update(id: number, updateMovementDto: UpdateMovementDto) {
+    return await this.prisma.movement.update({
+      where: { id },
+      data: updateMovementDto,
+    });
+  }
+
+  async delete(id: number) {
+    return await this.prisma.movement.update({
+      where: { id },
+      data: {
+        status: Status.INACTIVE,
+      },
+    });
   }
 }
