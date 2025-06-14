@@ -93,7 +93,7 @@ export class MovementService {
       where: {
         userId,
         itemId,
-        type: 'ENTRY',
+        type: MovementType.ENTRY,
         remainingQuantity: { gt: 0 },
         status: Status.ACTIVE,
       },
@@ -246,6 +246,7 @@ export class MovementService {
     try {
       this.logger.log(`Iniciando venta: ${JSON.stringify(saleMovementDto)}`);
       let cost = 0;
+
       return await this.prisma.$transaction(async (tx) => {
         let batchSummary = '';
 
