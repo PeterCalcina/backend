@@ -9,6 +9,7 @@ import {
   QueryGetCurrentStock,
   QueryGetExpiringStock,
 } from './helpers';
+import { Status } from '@prisma/client';
 
 @Injectable()
 export class ReportsService {
@@ -31,6 +32,7 @@ export class ReportsService {
         id: itemId,
         name: itemName ? { contains: itemName, mode: 'insensitive' } : undefined,
         userId,
+        status: Status.ACTIVE,
       };
 
       Object.keys(where).forEach(
@@ -102,11 +104,12 @@ export class ReportsService {
           lte: endDate,
         },
         itemId,
-        type: movementType,
+        type: movementType,   
         userId,
         batchCode: batchCode
           ? { contains: batchCode, mode: 'insensitive' }
           : undefined,
+        status: Status.ACTIVE,
       };
 
       Object.keys(where).forEach(
@@ -182,6 +185,7 @@ export class ReportsService {
         type: 'ENTRY',
         itemId,
         userId,
+        status: Status.ACTIVE,
       };
 
       if (status === 'expired') {

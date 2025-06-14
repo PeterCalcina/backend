@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, Status } from "@prisma/client";
 
 export type QueryGetExpiringStock = {
   type: 'ENTRY';
@@ -8,4 +8,5 @@ export type QueryGetExpiringStock = {
   expirationDate?: Prisma.DateTimeFilter;
   itemId: number;
   userId: string;
+  status: Status;
 };

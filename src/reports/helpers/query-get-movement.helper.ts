@@ -1,4 +1,4 @@
-import { MovementType } from "@prisma/client";
+import { MovementType, Status } from "@prisma/client";
 
 export interface QueryGetMovement {
   createdAt: {
@@ -12,4 +12,5 @@ export interface QueryGetMovement {
     mode: 'insensitive';
   };
   userId: string;
+  status: Status;
 }

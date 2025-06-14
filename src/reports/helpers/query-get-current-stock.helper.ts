@@ -1,3 +1,5 @@
+import { Status } from "@prisma/client";
+
 export interface QueryGetCurrentStock {
   qty: {
     gte: number;
@@ -9,4 +11,5 @@ export interface QueryGetCurrentStock {
     mode: 'insensitive';
   };
   userId: string;
+  status: Status;
 }
