@@ -132,6 +132,7 @@ export class MovementService {
         const movement = await tx.movement.create({
           data: {
             ...entryMovementDto,
+            batchCode: entryMovementDto.batchCode,
             remainingQuantity: entryMovementDto.quantity,
             userId: userId,
           },
@@ -357,6 +358,7 @@ export class MovementService {
           data: {
             ...exitMovementDto,
             type: MovementType.EXIT,
+            batchCode: exitMovementDto.batchCode,
             unitCost: entry.unitCost,
             remainingQuantity: 0,
             userId: userId,
@@ -463,6 +465,7 @@ export class MovementService {
           data: {
             ...expirationMovementDto,
             type: MovementType.EXPIRATION,
+            batchCode: expirationMovementDto.batchCode,
             remainingQuantity: 0,
             userId: userId,
           },
