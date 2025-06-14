@@ -7,4 +7,5 @@ export type QueryGetExpiringStock = {
   };
   expirationDate?: Prisma.DateTimeFilter;
   itemId: number;
+  userId: string;
 };

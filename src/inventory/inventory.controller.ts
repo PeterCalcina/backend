@@ -35,8 +35,8 @@ export class InventoryController {
   }
 
   @Get('/:id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const item = await this.inventoryService.findOne(id);
+  async findOne(@User('id') userId: string, @Param('id', ParseIntPipe) id: number) {
+    const item = await this.inventoryService.findOne(id, userId);
     return successResponse(item, 'Producto encontrado');
   }
 
@@ -44,14 +44,15 @@ export class InventoryController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateInventoryDto: UpdateInventoryDto,
+    @User('id') userId: string,
   ) {
-    const item = await this.inventoryService.update(id, updateInventoryDto);
+    const item = await this.inventoryService.update(id, updateInventoryDto, userId);
     return successResponse(item, 'Producto actualizado correctamente', HttpStatus.OK);
   }
 
   @Delete('/:id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    const item = await this.inventoryService.delete(id);
+  async remove(@User('id') userId: string, @Param('id', ParseIntPipe) id: number) {
+    const item = await this.inventoryService.delete(id, userId);
     return successResponse(item, 'Producto eliminado correctamente', HttpStatus.OK);
   }
 }

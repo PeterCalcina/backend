@@ -8,4 +8,5 @@ export interface QueryGetCurrentStock {
     contains: string;
     mode: 'insensitive';
   };
+  userId: string;
 }

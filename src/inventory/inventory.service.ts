@@ -64,11 +64,12 @@ export class InventoryService {
     return items;
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, userId: string) {
     this.logger.log(`Buscando item ${id}`);
     const item = await this.prisma.inventoryItem.findUnique({
       where: {
         id,
+        userId,
         status: 'ACTIVE',
       },
     });
@@ -84,11 +85,11 @@ export class InventoryService {
     return item;
   }
 
-  async update(id: number, updateInventoryDto: UpdateInventoryDto) {
+  async update(id: number, updateInventoryDto: UpdateInventoryDto, userId: string) {
     try {
       this.logger.log(`Actualizando item ${id}: ${JSON.stringify(updateInventoryDto)}`);
       const item = await this.prisma.inventoryItem.update({
-        where: { id },
+        where: { id, userId },
         data: updateInventoryDto,
       });
       this.logger.log(`Item ${id} actualizado exitosamente`);
@@ -124,12 +125,13 @@ export class InventoryService {
     cost: number,
     qty: number,
     prisma: Prisma.TransactionClient = this.prisma,
+    userId: string,
   ) {
     this.logger.log(`Actualizando costo después de entrada para item ${id}. Costo: ${cost}, Cantidad: ${qty}`);
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, userId);
 
     await prisma.inventoryItem.update({
-      where: { id },
+      where: { id, userId },
       data: {
         cost,
         qty: { increment: qty },
@@ -143,12 +145,13 @@ export class InventoryService {
     id: number,
     updateInventoryDto: UpdateInventoryAfterMovementDto,
     prisma: Prisma.TransactionClient = this.prisma,
+    userId: string,
   ) {
     this.logger.log(`Actualizando inventario después de movimiento para item ${id}: ${JSON.stringify(updateInventoryDto)}`);
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, userId);
 
     await prisma.inventoryItem.update({
-      where: { id },
+      where: { id, userId },
       data: {
         cost: updateInventoryDto.cost ?? item.cost,
         qty: { decrement: updateInventoryDto.qty },
@@ -157,11 +160,11 @@ export class InventoryService {
     this.logger.log(`Inventario actualizado exitosamente para item ${id}`);
   }
 
-  async delete(id: number) {
+  async delete(id: number, userId: string) {
     try {
       this.logger.log(`Eliminando item ${id}`);
       const item = await this.prisma.inventoryItem.update({
-        where: { id },
+        where: { id, userId },
         data: { status: 'INACTIVE' },
       });
       this.logger.log(`Item ${id} eliminado exitosamente`);

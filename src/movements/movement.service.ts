@@ -19,22 +19,23 @@ export class MovementService {
     private readonly inventoryService: InventoryService,
   ) {}
 
-  findAll() {
+  findAll(userId: string) {
     return this.prisma.movement.findMany({
-      where: { status: Status.ACTIVE },
+      where: { userId, status: Status.ACTIVE },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  findOne(id: number) {
+  findOne(id: number, userId: string) {
     return this.prisma.movement.findUnique({
-      where: { id, status: Status.ACTIVE },
+      where: { id, userId, status: Status.ACTIVE },
     });
-  }
+  }   
 
-  findAllEntriesByExpirationDate() {
+  findAllEntriesByExpirationDate(userId: string) {
     return this.prisma.movement.findMany({
       where: {
+        userId,
         type: MovementType.ENTRY,
         remainingQuantity: { gt: 0 },
         expirationDate: { not: null },
@@ -44,9 +45,10 @@ export class MovementService {
     });
   }
 
-  findAllEntries() {
+  findAllEntries(userId: string) {
     return this.prisma.movement.findMany({
       where: {
+        userId,
         type: MovementType.ENTRY,
         remainingQuantity: { gt: 0 },
         status: Status.ACTIVE,
@@ -59,9 +61,11 @@ export class MovementService {
     batchCode: string,
     type: MovementType,
     prisma: Prisma.TransactionClient = this.prisma,
+    userId: string,
   ) {
     return prisma.movement.findFirst({
       where: {
+        userId,
         batchCode,
         type,
         remainingQuantity: { gt: 0 },
@@ -70,18 +74,24 @@ export class MovementService {
     });
   }
 
-  findOneByBatchCodeAndType(batchCode: string, type: MovementType) {
+  findOneByBatchCodeAndType(
+    batchCode: string,
+    type: MovementType,
+    userId: string,
+  ) {
     return this.prisma.movement.findFirst({
-      where: { batchCode, type, status: Status.ACTIVE },
+      where: { userId, batchCode, type, status: Status.ACTIVE },
     });
   }
 
   findEntriesByItemId(
     itemId: number,
     prisma: Prisma.TransactionClient = this.prisma,
+    userId: string,
   ) {
     return prisma.movement.findMany({
       where: {
+        userId,
         itemId,
         type: 'ENTRY',
         remainingQuantity: { gt: 0 },
@@ -91,12 +101,15 @@ export class MovementService {
     });
   }
 
-  async entry(entryMovementDto: MovementDto) {
+  async entry(entryMovementDto: MovementDto, userId: string) {
     try {
-      this.logger.log(`Iniciando entrada de producto: ${JSON.stringify(entryMovementDto)}`);
+      this.logger.log(
+        `Iniciando entrada de producto: ${JSON.stringify(entryMovementDto)}`,
+      );
       const entry = await this.findOneByBatchCodeAndType(
         entryMovementDto.batchCode,
         MovementType.ENTRY,
+        userId,
       );
 
       if (entry) {
@@ -110,13 +123,17 @@ export class MovementService {
         const entries = await this.findEntriesByItemId(
           entryMovementDto.itemId,
           tx,
+          userId,
         );
-        this.logger.debug(`Entradas encontradas para el item ${entryMovementDto.itemId}: ${entries.length}`);
+        this.logger.debug(
+          `Entradas encontradas para el item ${entryMovementDto.itemId}: ${entries.length}`,
+        );
 
         const movement = await tx.movement.create({
           data: {
             ...entryMovementDto,
             remainingQuantity: entryMovementDto.quantity,
+            userId: userId,
           },
         });
         this.logger.log(`Movimiento de entrada creado: ${movement.id}`);
@@ -133,8 +150,11 @@ export class MovementService {
           cost,
           entryMovementDto.quantity,
           tx,
+          userId,
         );
-        this.logger.log(`Inventario actualizado para el item ${entryMovementDto.itemId}`);
+        this.logger.log(
+          `Inventario actualizado para el item ${entryMovementDto.itemId}`,
+        );
 
         return movement;
       });
@@ -184,8 +204,9 @@ export class MovementService {
     itemId: number,
     quantity: number,
     tx: Prisma.TransactionClient,
+    userId: string,
   ) {
-    const entries = await this.findEntriesByItemId(itemId, tx);
+    const entries = await this.findEntriesByItemId(itemId, tx, userId);
     let remainingQty = quantity;
     const usedBatches = new Set<string>();
 
@@ -220,7 +241,7 @@ export class MovementService {
     };
   }
 
-  async sale(saleMovementDto: MovementDto) {
+  async sale(saleMovementDto: MovementDto, userId: string) {
     try {
       this.logger.log(`Iniciando venta: ${JSON.stringify(saleMovementDto)}`);
       let cost = 0;
@@ -231,12 +252,14 @@ export class MovementService {
           saleMovementDto.itemId,
           saleMovementDto.quantity,
           tx,
+          userId,
         );
 
         if (multipleBatchesUsed) {
           const entries = await this.findEntriesByItemId(
             saleMovementDto.itemId,
             tx,
+            userId,
           );
           cost = calculateWeightedAverageCost(entries);
           batchSummary = usedBatches.join(',');
@@ -250,6 +273,7 @@ export class MovementService {
             type: MovementType.SALE,
             batchCode: batchSummary,
             remainingQuantity: 0,
+            userId: userId,
           },
         });
         this.logger.log(`Movimiento de venta creado: ${movement.id}`);
@@ -261,16 +285,16 @@ export class MovementService {
             cost: multipleBatchesUsed ? cost : undefined,
           },
           tx,
+          userId,
         );
-        this.logger.log(`Inventario actualizado después de la venta para el item ${saleMovementDto.itemId}`);
+        this.logger.log(
+          `Inventario actualizado después de la venta para el item ${saleMovementDto.itemId}`,
+        );
 
         return movement;
       });
     } catch (error) {
-      this.logger.error(
-        `Error en venta: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Error en venta: ${error.message}`, error.stack);
       if (error instanceof BadRequestException) {
         throw new BadRequestException({
           message: 'Error al procesar la venta',
@@ -284,9 +308,11 @@ export class MovementService {
     }
   }
 
-  async exit(exitMovementDto: MovementDto) {
+  async exit(exitMovementDto: MovementDto, userId: string) {
     try {
-      this.logger.log(`Iniciando salida por lote: ${JSON.stringify(exitMovementDto)}`);
+      this.logger.log(
+        `Iniciando salida por lote: ${JSON.stringify(exitMovementDto)}`,
+      );
       return await this.prisma.$transaction(async (tx) => {
         let remainingStock = 0;
 
@@ -294,6 +320,7 @@ export class MovementService {
           exitMovementDto.batchCode,
           MovementType.ENTRY,
           tx,
+          userId,
         );
 
         if (!entry) {
@@ -307,7 +334,9 @@ export class MovementService {
         remainingStock = entry.remainingQuantity - exitMovementDto.quantity;
 
         if (remainingStock < 0) {
-          this.logger.warn(`Stock insuficiente en lote ${exitMovementDto.batchCode}. Stock actual: ${entry.remainingQuantity}, Cantidad solicitada: ${exitMovementDto.quantity}`);
+          this.logger.warn(
+            `Stock insuficiente en lote ${exitMovementDto.batchCode}. Stock actual: ${entry.remainingQuantity}, Cantidad solicitada: ${exitMovementDto.quantity}`,
+          );
           throw new BadRequestException({
             message: `La cantidad a sacar excede el stock disponible en el lote`,
             technicalMessage: 'Exit quantity exceeds remaining stock in batch',
@@ -320,7 +349,9 @@ export class MovementService {
             remainingQuantity: remainingStock,
           },
         });
-        this.logger.log(`Stock actualizado para el lote ${exitMovementDto.batchCode}. Nuevo stock: ${remainingStock}`);
+        this.logger.log(
+          `Stock actualizado para el lote ${exitMovementDto.batchCode}. Nuevo stock: ${remainingStock}`,
+        );
 
         const movement = await tx.movement.create({
           data: {
@@ -328,6 +359,7 @@ export class MovementService {
             type: MovementType.EXIT,
             unitCost: entry.unitCost,
             remainingQuantity: 0,
+            userId: userId,
           },
         });
         this.logger.log(`Movimiento de salida creado: ${movement.id}`);
@@ -338,8 +370,11 @@ export class MovementService {
           remainingEntries = await this.findEntriesByItemId(
             exitMovementDto.itemId,
             tx,
+            userId,
           );
-          this.logger.debug(`Entradas restantes encontradas: ${remainingEntries.length}`);
+          this.logger.debug(
+            `Entradas restantes encontradas: ${remainingEntries.length}`,
+          );
         }
 
         await this.inventoryService.updateAfterMovement(
@@ -352,8 +387,11 @@ export class MovementService {
                 : undefined,
           },
           tx,
+          userId,
         );
-        this.logger.log(`Inventario actualizado después de la salida para el item ${exitMovementDto.itemId}`);
+        this.logger.log(
+          `Inventario actualizado después de la salida para el item ${exitMovementDto.itemId}`,
+        );
 
         return movement;
       });
@@ -375,29 +413,39 @@ export class MovementService {
     }
   }
 
-  async expiration(expirationMovementDto: MovementDto) {
+  async expiration(expirationMovementDto: MovementDto, userId: string) {
     try {
-      this.logger.log(`Iniciando expiración: ${JSON.stringify(expirationMovementDto)}`);
+      this.logger.log(
+        `Iniciando expiración: ${JSON.stringify(expirationMovementDto)}`,
+      );
       return await this.prisma.$transaction(async (tx) => {
         const entry = await this.findOneByBatchCode(
           expirationMovementDto.batchCode,
           MovementType.ENTRY,
           tx,
+          userId,
         );
 
         if (!entry) {
-          this.logger.warn(`Lote no encontrado para expiración: ${expirationMovementDto.batchCode}`);
+          this.logger.warn(
+            `Lote no encontrado para expiración: ${expirationMovementDto.batchCode}`,
+          );
           throw new BadRequestException({
-            message: 'No se encontró el lote especificado o no tiene stock disponible',
+            message:
+              'No se encontró el lote especificado o no tiene stock disponible',
             technicalMessage: 'Batch not found or has no available stock',
           });
         }
 
         if (entry.remainingQuantity < expirationMovementDto.quantity) {
-          this.logger.warn(`Cantidad de expiración excede el stock disponible. Stock: ${entry.remainingQuantity}, Cantidad solicitada: ${expirationMovementDto.quantity}`);
+          this.logger.warn(
+            `Cantidad de expiración excede el stock disponible. Stock: ${entry.remainingQuantity}, Cantidad solicitada: ${expirationMovementDto.quantity}`,
+          );
           throw new BadRequestException({
-            message: 'La cantidad a expirar excede el stock disponible del lote',
-            technicalMessage: 'Expiration quantity exceeds available batch stock',
+            message:
+              'La cantidad a expirar excede el stock disponible del lote',
+            technicalMessage:
+              'Expiration quantity exceeds available batch stock',
           });
         }
 
@@ -407,13 +455,16 @@ export class MovementService {
             remainingQuantity: 0,
           },
         });
-        this.logger.log(`Stock del lote ${expirationMovementDto.batchCode} actualizado a 0 por expiración`);
+        this.logger.log(
+          `Stock del lote ${expirationMovementDto.batchCode} actualizado a 0 por expiración`,
+        );
 
         const movement = await tx.movement.create({
           data: {
             ...expirationMovementDto,
             type: MovementType.EXPIRATION,
             remainingQuantity: 0,
+            userId: userId,
           },
         });
         this.logger.log(`Movimiento de expiración creado: ${movement.id}`);
@@ -421,8 +472,11 @@ export class MovementService {
         const remainingEntries = await this.findEntriesByItemId(
           expirationMovementDto.itemId,
           tx,
+          userId,
         );
-        this.logger.debug(`Entradas restantes encontradas: ${remainingEntries.length}`);
+        this.logger.debug(
+          `Entradas restantes encontradas: ${remainingEntries.length}`,
+        );
 
         await this.inventoryService.updateAfterMovement(
           expirationMovementDto.itemId,
@@ -434,16 +488,16 @@ export class MovementService {
                 : undefined,
           },
           tx,
+          userId,
         );
-        this.logger.log(`Inventario actualizado después de la expiración para el item ${expirationMovementDto.itemId}`);
+        this.logger.log(
+          `Inventario actualizado después de la expiración para el item ${expirationMovementDto.itemId}`,
+        );
 
         return movement;
       });
     } catch (error) {
-      this.logger.error(
-        `Error en expiración: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Error en expiración: ${error.message}`, error.stack);
       if (error instanceof BadRequestException) {
         throw new BadRequestException({
           message: 'Error al procesar la expiración',
@@ -452,16 +506,23 @@ export class MovementService {
       }
       throw new BadRequestException({
         message: 'Error al procesar la eliminación de producto expirado',
-        technicalMessage: 'Error processing the expiration movement: ' + error.message,
+        technicalMessage:
+          'Error processing the expiration movement: ' + error.message,
       });
     }
   }
 
-  async update(id: number, updateMovementDto: UpdateMovementDto) {
+  async update(
+    id: number,
+    updateMovementDto: UpdateMovementDto,
+    userId: string,
+  ) {
     try {
-      this.logger.log(`Actualizando movimiento ${id}: ${JSON.stringify(updateMovementDto)}`);
+      this.logger.log(
+        `Actualizando movimiento ${id}: ${JSON.stringify(updateMovementDto)}`,
+      );
       const movement = await this.prisma.movement.update({
-        where: { id },
+        where: { id, userId },
         data: updateMovementDto,
       });
       this.logger.log(`Movimiento ${id} actualizado exitosamente`);
@@ -478,11 +539,11 @@ export class MovementService {
     }
   }
 
-  async delete(id: number) {
+  async delete(id: number, userId: string) {
     try {
       this.logger.log(`Eliminando movimiento ${id}`);
       const movement = await this.prisma.movement.update({
-        where: { id },
+        where: { id, userId },
         data: {
           status: Status.INACTIVE,
         },

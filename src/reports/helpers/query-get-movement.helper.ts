@@ -11,4 +11,5 @@ export interface QueryGetMovement {
     contains: string;
     mode: 'insensitive';
   };
+  userId: string;
 }

@@ -16,7 +16,7 @@ export class ReportsService {
 
   constructor(private prisma: PrismaService) {}
 
-  async getCurrentStockDto(query: GetCurrentStockDto) {
+  async getCurrentStockDto(query: GetCurrentStockDto, userId: string) {
     try {
       this.logger.log(`Generando reporte de stock actual con filtros: ${JSON.stringify(query)}`);
       const { itemId, itemName, minQty, maxQty, page, pageSize } = query;
@@ -30,6 +30,7 @@ export class ReportsService {
         },
         id: itemId,
         name: itemName ? { contains: itemName, mode: 'insensitive' } : undefined,
+        userId,
       };
 
       Object.keys(where).forEach(
@@ -79,7 +80,7 @@ export class ReportsService {
     } 
   }
 
-  async getMovementHistory(query: GetMovementHistoryDto) {
+  async getMovementHistory(query: GetMovementHistoryDto, userId: string) {
     try {
       this.logger.log(`Generando historial de movimientos con filtros: ${JSON.stringify(query)}`);
       const {
@@ -102,6 +103,7 @@ export class ReportsService {
         },
         itemId,
         type: movementType,
+        userId,
         batchCode: batchCode
           ? { contains: batchCode, mode: 'insensitive' }
           : undefined,
@@ -164,7 +166,7 @@ export class ReportsService {
     }
   }
 
-  async getExpiringStock(query: GetExpiringStockDto) {
+  async getExpiringStock(query: GetExpiringStockDto, userId: string) {
     try {
       this.logger.log(`Generando reporte de stock por expirar con filtros: ${JSON.stringify(query)}`);
       const { status, daysUntilExpiration, itemId, page, pageSize } = query;
@@ -178,6 +180,7 @@ export class ReportsService {
       const where: QueryGetExpiringStock = {
         type: 'ENTRY',
         itemId,
+        userId,
       };
 
       if (status === 'expired') {
